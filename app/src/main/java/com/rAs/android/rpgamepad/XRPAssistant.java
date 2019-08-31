@@ -1,5 +1,6 @@
 package com.rAs.android.rpgamepad;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -10,11 +11,13 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.widget.Toast;
 
 import java.io.File;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.util.Map;
 
@@ -29,9 +32,10 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.OnGamepadStateChangeListener {
 	
 	private static final String APP_PACKAGE = "com.playstation.remoteplay";
-    private static final boolean log = false;
+    private static final boolean log = true;
     private static final String TAG = "RP_ASSISTANT";
-    private static final String PREFS_PATH = "/data/data/com.rAs.android.rpgamepad/shared_prefs/com.rAs.android.rpgamepad_preferences.xml";
+    @SuppressLint("SdCardPath")
+	private static final String PREFS_PATH = "/data/data/com.rAs.android.rpgamepad/shared_prefs/com.rAs.android.rpgamepad_preferences.xml";
 
     private long prefsLoadMillis = 0;
 	private static PSGamepadHandler psGamepadHandler;
@@ -58,17 +62,16 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
 		
 		log("remoteplay load package");
 
+		XGamepadStateSender.init(
+				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary", lpparam.classLoader),
+				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadData", lpparam.classLoader),
+				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogStick", lpparam.classLoader),
+				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogButtons", lpparam.classLoader)
+		);
 
-
-		Class<?> gamepadState = XposedHelpers.findClass("com.gaikai.client.GamepadState", lpparam.classLoader);
-		Class<?> gamepadCallback = XposedHelpers.findClass("com.gaikai.client.GaikaiPlayerNativeCallbacks", lpparam.classLoader);
-		
-		XGamepadStateSender.init(gamepadState, gamepadCallback);
-		
-		
 		final Class<?> activityClass = XposedHelpers.findClass("android.app.Activity", lpparam.classLoader);
 
-		XposedHelpers.findAndHookMethod(activityClass, "onResume", new Object[]{new XC_MethodHook() {
+		XposedHelpers.findAndHookMethod(activityClass, "onResume", new XC_MethodHook() {
 			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 				Activity activity = (Activity)param.thisObject;
 
@@ -83,23 +86,23 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
 					activity.setRequestedOrientation(orientation);
 				}
 			}
-		}});
+		});
 		
-		XposedHelpers.findAndHookMethod(activityClass, "dispatchKeyEvent", new Object[]{KeyEvent.class, new XC_MethodHook() {
+		XposedHelpers.findAndHookMethod(activityClass, "dispatchKeyEvent", KeyEvent.class, new XC_MethodHook() {
 			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 				if(psGamepadHandler == null) return;
 
 				KeyEvent event = (KeyEvent)param.args[0];
-				
+
 				try{
 					psGamepadHandler.setGamepadKeyState(event);
 				} catch(Exception e) {
-					log(e);    
+					log(e);
 				}
 			}
-		}});
+		});
 
-		XposedHelpers.findAndHookMethod(activityClass, "dispatchGenericMotionEvent", new Object[]{MotionEvent.class, new XC_MethodHook() {
+		XposedHelpers.findAndHookMethod(activityClass, "dispatchGenericMotionEvent", MotionEvent.class, new XC_MethodHook() {
 			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 				if(psGamepadHandler == null) return;
 
@@ -111,13 +114,43 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
 					log(e);
 				}
 			}
-		}});
+		});
 
 		
 		// Show Info
+        Class<?> padDataClass = XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadData", lpparam.classLoader);
+
+        XposedHelpers.findAndHookMethod(XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary", lpparam.classLoader), "rpCoreSetPadData", padDataClass, new XC_MethodHook() {
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                XRPAssistant.log("Buttons: " + XposedHelpers.getObjectField(param.args[0], "mButtons"));
+
+                XRPAssistant.log("Left X: " + XposedHelpers.getObjectField(XposedHelpers.getObjectField(param.args[0], "mLeftStick"), "mX"));
+                XRPAssistant.log("Left Y: " + XposedHelpers.getObjectField(XposedHelpers.getObjectField(param.args[0], "mLeftStick"), "mY"));
+
+                XRPAssistant.log("Right X: " + XposedHelpers.getObjectField(XposedHelpers.getObjectField(param.args[0], "mRightStick"), "mX"));
+                XRPAssistant.log("Right Y: " + XposedHelpers.getObjectField(XposedHelpers.getObjectField(param.args[0], "mRightStick"), "mY"));
+
+                XRPAssistant.log("L2: " + XposedHelpers.getObjectField(XposedHelpers.getObjectField(param.args[0], "mAnalogButtons"), "mL2"));
+                XRPAssistant.log("R2: " + XposedHelpers.getObjectField(XposedHelpers.getObjectField(param.args[0], "mAnalogButtons"), "mR2"));
+            }
+        });
+
+        Class<?> vibDataClass = XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadVibrationParam", lpparam.classLoader);
+
+        XposedHelpers.findAndHookMethod(XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary", lpparam.classLoader), "rpCoreGetPadVibrationParam", vibDataClass, int.class, new XC_MethodHook() {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+
+                if ((boolean) param.getResult()) {
+                    XRPAssistant.log("Good?: " + param.getResult());
+                    XRPAssistant.log("M1: " + XposedHelpers.getObjectField(param.args[0], "mLargeMotor"));
+                    XRPAssistant.log("M2: " + XposedHelpers.getObjectField(param.args[0], "mSmallMotor"));
+                }
+            }
+        });
+
 		final Class<?> rpActivityMainClass = XposedHelpers.findClass("com.playstation.remoteplay.RpActivityMain", lpparam.classLoader);
 		
-		XposedHelpers.findAndHookMethod(rpActivityMainClass, "onResume", new Object[]{ new XC_MethodHook() {
+		XposedHelpers.findAndHookMethod(rpActivityMainClass, "onResume", new XC_MethodHook() {
 			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
 				if(System.currentTimeMillis() - prefsLoadMillis < 10000)
 					return;
@@ -180,15 +213,44 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
 
 				}
 			}
-		}});
+		});
 
+        // Hook method to tell app that controller is being used
+        XposedHelpers.findAndHookMethod("o.\u13d0", lpparam.classLoader, "\u0971", InputDevice.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                if (XRPAssistant.psGamepadHandler != null) {
+                    param.setResult(true);
+                }
+            }
+        });
 
-		new XFakeWifiEnabler(lpparam).apply();
+        // Hook methods to defeat root detection
+        XposedHelpers.findAndHookMethod("o.\u51AB", lpparam.classLoader, "\u02CF", int.class, int.class, char.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Method method = ((Class) param.getResult()).getDeclaredMethods()[0];
+                XposedBridge.hookMethod(method, new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        param.setResult(true);
+                    }
+                });
+            }
+        });
+
+        XposedHelpers.findAndHookMethod("o.\u14FC", lpparam.classLoader, "\u0971", new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                Class clazz = XposedHelpers.findClass("o.\u14A9", param.thisObject.getClass().getClassLoader());
+                Object obj = XposedHelpers.getStaticObjectField(clazz, "\u02CE");
+                XposedHelpers.setBooleanField(obj, "\u02CA\u0971", false);
+            }
+        });
 	}
 
 	@Override
 	public void onGamepadStateChange(boolean sensor) {
-		XGamepadStateSender.applyGamepadState(sensor, psGamepadHandler);
+		XGamepadStateSender.applyGamepadState(psGamepadHandler);
 	}
-
 }
