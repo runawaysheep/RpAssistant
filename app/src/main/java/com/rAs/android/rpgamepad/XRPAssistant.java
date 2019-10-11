@@ -32,7 +32,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.OnGamepadStateChangeListener {
 	
 	private static final String APP_PACKAGE = "com.playstation.remoteplay";
-    private static final boolean log = true;
+    private static final boolean log = false;
     private static final String TAG = "RP_ASSISTANT";
     @SuppressLint("SdCardPath")
 	private static final String PREFS_PATH = "/data/data/com.rAs.android.rpgamepad/shared_prefs/com.rAs.android.rpgamepad_preferences.xml";
@@ -214,6 +214,13 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
 				}
 			}
 		});
+
+		XposedHelpers.findAndHookMethod("o.\u0510", lpparam.classLoader, "\u02ce", int.class, int.class, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                return;
+            }
+        });
 
         // Hook method to tell app that controller is being used
         XposedHelpers.findAndHookMethod("o.\u017f\u04c0", lpparam.classLoader, "\u02cb", Context.class, InputDevice.class, new XC_MethodHook() {
