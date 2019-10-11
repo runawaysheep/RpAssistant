@@ -216,7 +216,7 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
 		});
 
         // Hook method to tell app that controller is being used
-        XposedHelpers.findAndHookMethod("o.\u13d0", lpparam.classLoader, "\u0971", InputDevice.class, new XC_MethodHook() {
+        XposedHelpers.findAndHookMethod("o.\u017f\u04c0", lpparam.classLoader, "\u02cb", Context.class, InputDevice.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 if (XRPAssistant.psGamepadHandler != null) {
@@ -226,7 +226,7 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
         });
 
         // Hook methods to defeat root detection
-        XposedHelpers.findAndHookMethod("o.\u51AB", lpparam.classLoader, "\u02CF", int.class, int.class, char.class, new XC_MethodHook() {
+        XposedHelpers.findAndHookMethod("o.\u0456\u0433", lpparam.classLoader, "\u0971", int.class, char.class, int.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Method method = ((Class) param.getResult()).getDeclaredMethods()[0];
@@ -239,14 +239,16 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
             }
         });
 
-        XposedHelpers.findAndHookMethod("o.\u14FC", lpparam.classLoader, "\u0971", new XC_MethodHook() {
+        XposedHelpers.findAndHookMethod("o.\u0197\u0399", lpparam.classLoader, "\u02cb", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                Class clazz = XposedHelpers.findClass("o.\u14A9", param.thisObject.getClass().getClassLoader());
-                Object obj = XposedHelpers.getStaticObjectField(clazz, "\u02CE");
-                XposedHelpers.setBooleanField(obj, "\u02CA\u0971", false);
+                Class clazz = XposedHelpers.findClass("o.\u0196\u0268", param.thisObject.getClass().getClassLoader());
+                Object obj = XposedHelpers.getStaticObjectField(clazz, "\u02cf");
+                XposedHelpers.setBooleanField(obj, "\u0971\u02ca", false);
             }
         });
+
+		new XFakeWifiEnabler(lpparam).apply();
 	}
 
 	@Override
