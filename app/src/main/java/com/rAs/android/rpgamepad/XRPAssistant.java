@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Toast;
 
 import java.io.File;
@@ -91,19 +92,36 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
             }
         });
 
-        XposedHelpers.findAndHookMethod(activityClass, "dispatchKeyEvent", KeyEvent.class, new XC_MethodHook() {
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                if(psGamepadHandler == null) return;
+        if (Build.VERSION.SDK_INT < 28) {
+            XposedHelpers.findAndHookMethod("o.\u0142\u04c0", lpparam.classLoader, "onKey", View.class, int.class, KeyEvent.class, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    if (psGamepadHandler == null) return;
 
-                KeyEvent event = (KeyEvent)param.args[0];
-
-                try{
-                    psGamepadHandler.setGamepadKeyState(event);
-                } catch(Exception e) {
-                    log(e);
+                    KeyEvent event = (KeyEvent) param.args[2];
+                    try {
+                        psGamepadHandler.setGamepadKeyState(event);
+                    } catch (Exception e) {
+                        log(e);
+                    }
+                    param.setResult(true);
                 }
-            }
-        });
+            });
+        } else {
+            XposedHelpers.findAndHookMethod(activityClass, "dispatchKeyEvent", KeyEvent.class, new XC_MethodHook() {
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (psGamepadHandler == null) return;
+
+                    KeyEvent event = (KeyEvent) param.args[0];
+
+                    try {
+                        psGamepadHandler.setGamepadKeyState(event);
+                    } catch (Exception e) {
+                        log(e);
+                    }
+                }
+            });
+        }
 
         XposedHelpers.findAndHookMethod(activityClass, "dispatchGenericMotionEvent", MotionEvent.class, new XC_MethodHook() {
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -228,11 +246,12 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
         });
 
         // Prevent Remote Play from handling input events...
-        XposedHelpers.findAndHookMethod("o.\u0142\u04c0", lpparam.classLoader, "\u02cb", "o.\u0192", padDataClass, new XC_MethodHook() {
+        XposedHelpers.findAndHookMethod("o.\u0142\u04c0", lpparam.classLoader, "\u02cf", InputDevice.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 // ...UNLESS it was sourced from the touchscreen controller
-                if (!Thread.currentThread().getStackTrace()[7].getMethodName().equals("onTouch")) {
+                InputDevice device = (InputDevice) param.args[0];
+                if (!device.isVirtual()) {
                     param.setResult(null);
                 }
             }

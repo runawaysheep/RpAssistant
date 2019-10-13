@@ -477,6 +477,12 @@ public class PSGamepadHandler {
                 }
 
                 if (v == 0) {
+                    // Clear the trigger buttons if we haven't already
+                    if (button == Gamepad.AXIS_L2 || button == Gamepad.AXIS_R2) {
+                        buttonState &= ~(button == Gamepad.AXIS_L2 ? Gamepad.BUTTON_L2 : Gamepad.BUTTON_R2);
+                        gamepadValues.setButtonState(buttonState);
+                        gamepadValues.setChangedButtons(button);
+                    }
                     continue;
                 }
 
