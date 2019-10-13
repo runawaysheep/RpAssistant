@@ -1,6 +1,6 @@
 package com.rAs.android.rpgamepad;
 
-import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 
 import de.robv.android.xposed.XposedHelpers;
 
@@ -10,17 +10,23 @@ public class XGamepadStateSender {
 	private static Class<?> joystickState;
 	private static Class<?> triggerState;
 
-	private static Method setPadDataCallback;
+	private static Field setPadDataCallback;
+	private static Object padDataHolder;
 
-	static void init(Class<?> nativeClass, Class<?> padDataClass, Class<?> joystickStateClass, Class<?> triggerStateClass) {
+	static void init(Class<?> padDataClass, Class<?> joystickStateClass, Class<?> triggerStateClass, Class<?> padDataHolderClass) {
 		try {
 			padData = padDataClass.newInstance();
 			joystickState = joystickStateClass;
 			triggerState = triggerStateClass;
-			setPadDataCallback = nativeClass.getMethod("rpCoreSetPadData", padDataClass);
+			setPadDataCallback = padDataHolderClass.getDeclaredField("\u02cb\u0971");
+
 		} catch (Exception e) {
 			XRPAssistant.log(e);
 		}
+	}
+
+	static void setPadDataHolder(Object holder) {
+		padDataHolder = holder;
 	}
 
 	static void applyGamepadState(PSGamepadHandler handler) {
@@ -50,8 +56,12 @@ public class XGamepadStateSender {
 	}
 
 	private static void runGamepadStateChanged() {
+		if (padDataHolder == null) {
+			XRPAssistant.log("Can't send gamepad data, remote play session has not activated, yet.");
+			return;
+		}
 		try {
-			setPadDataCallback.invoke(null, padData);
+			setPadDataCallback.set(padDataHolder, padData);
 		} catch (Exception e) {
 			XRPAssistant.log(e);
 		}

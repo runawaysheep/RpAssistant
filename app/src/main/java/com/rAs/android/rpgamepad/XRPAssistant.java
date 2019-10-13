@@ -2,14 +2,9 @@ package com.rAs.android.rpgamepad;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.net.wifi.SupplicantState;
-import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiManager;
 import android.os.Build;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
@@ -18,106 +13,113 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.lang.reflect.Method;
-import java.net.InetAddress;
 import java.util.Map;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
+import de.robv.android.xposed.callbacks.XCallback;
 
 public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.OnGamepadStateChangeListener {
-	
-	private static final String APP_PACKAGE = "com.playstation.remoteplay";
-    private static final boolean log = false;
+
+    private static final String APP_PACKAGE = "com.playstation.remoteplay";
+    private static final boolean log = true;
     private static final String TAG = "RP_ASSISTANT";
     @SuppressLint("SdCardPath")
-	private static final String PREFS_PATH = "/data/data/com.rAs.android.rpgamepad/shared_prefs/com.rAs.android.rpgamepad_preferences.xml";
+    private static final String PREFS_PATH = "/data/data/com.rAs.android.rpgamepad/shared_prefs/com.rAs.android.rpgamepad_preferences.xml";
 
     private long prefsLoadMillis = 0;
-	private static PSGamepadHandler psGamepadHandler;
+    private static PSGamepadHandler psGamepadHandler;
     private Context context;
 
     public static void log(Object text){
-    	if(!log) return;
-    	
-    	if(text instanceof Throwable) {
-    		Throwable e = (Throwable)text;
-    		Log.e(TAG, e.getClass().getName());
-    		Log.e(TAG, e.getMessage());
-    		Log.e(TAG, Log.getStackTraceString(e));
-    	} else if(text == null) {
-    		Log.w(TAG, "<< null >>");
-    	} else {
-    		Log.i(TAG, text.toString());
-    	}
+        if(!log) return;
+
+        if(text instanceof Throwable) {
+            Throwable e = (Throwable)text;
+            Log.e(TAG, e.getClass().getName());
+            Log.e(TAG, e.getMessage());
+            Log.e(TAG, Log.getStackTraceString(e));
+        } else if(text == null) {
+            Log.w(TAG, "<< null >>");
+        } else {
+            Log.i(TAG, text.toString());
+        }
     }
 
-	@Override
-	public void handleLoadPackage(final LoadPackageParam lpparam) throws Throwable {
-		if (!lpparam.packageName.equals(APP_PACKAGE)) return;
-		
-		log("remoteplay load package");
+    @Override
+    public void handleLoadPackage(final LoadPackageParam lpparam) throws Throwable {
 
-		XGamepadStateSender.init(
-				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary", lpparam.classLoader),
-				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadData", lpparam.classLoader),
-				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogStick", lpparam.classLoader),
-				XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogButtons", lpparam.classLoader)
-		);
+        if (lpparam.packageName.equals("android")) {
+            try {
+                hookHomeButton(lpparam.classLoader);
+            } catch (Exception e) {
+                log(e);
+            }
+        }
 
-		final Class<?> activityClass = XposedHelpers.findClass("android.app.Activity", lpparam.classLoader);
+        if (!lpparam.packageName.equals(APP_PACKAGE)) return;
 
-		XposedHelpers.findAndHookMethod(activityClass, "onResume", new XC_MethodHook() {
-			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-				Activity activity = (Activity)param.thisObject;
+        log("remoteplay load package");
 
-				XSharedPreferences prefs = new XSharedPreferences(XRPAssistant.class.getPackage().getName());
-				String orientationStr = prefs.getString("screen_orientation", "-1");
-				int orientation = -1;
-				try{
-					orientation = Integer.parseInt(orientationStr);
-				} catch(Exception e) {}
+        XGamepadStateSender.init(
+                XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadData", lpparam.classLoader),
+                XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogStick", lpparam.classLoader),
+                XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogButtons", lpparam.classLoader),
+                XposedHelpers.findClass("o.\u0142\u04c0", lpparam.classLoader)
+        );
 
-				if(orientation != -1) {
-					activity.setRequestedOrientation(orientation);
-				}
-			}
-		});
-		
-		XposedHelpers.findAndHookMethod(activityClass, "dispatchKeyEvent", KeyEvent.class, new XC_MethodHook() {
-			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-				if(psGamepadHandler == null) return;
+        final Class<?> activityClass = XposedHelpers.findClass("android.app.Activity", lpparam.classLoader);
 
-				KeyEvent event = (KeyEvent)param.args[0];
+        XposedHelpers.findAndHookMethod(activityClass, "onResume", new XC_MethodHook() {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                Activity activity = (Activity)param.thisObject;
 
-				try{
-					psGamepadHandler.setGamepadKeyState(event);
-				} catch(Exception e) {
-					log(e);
-				}
-			}
-		});
+                XSharedPreferences prefs = new XSharedPreferences(XRPAssistant.class.getPackage().getName());
+                String orientationStr = prefs.getString("screen_orientation", "-1");
+                int orientation = -1;
+                try{
+                    orientation = Integer.parseInt(orientationStr);
+                } catch(Exception e) {}
 
-		XposedHelpers.findAndHookMethod(activityClass, "dispatchGenericMotionEvent", MotionEvent.class, new XC_MethodHook() {
-			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-				if(psGamepadHandler == null) return;
+                if(orientation != -1) {
+                    activity.setRequestedOrientation(orientation);
+                }
+            }
+        });
 
-				MotionEvent event = (MotionEvent)param.args[0];
+        XposedHelpers.findAndHookMethod(activityClass, "dispatchKeyEvent", KeyEvent.class, new XC_MethodHook() {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                if(psGamepadHandler == null) return;
 
-				try{
-					psGamepadHandler.setGamepadAxisState(event);
-				} catch(Exception e) {
-					log(e);
-				}
-			}
-		});
+                KeyEvent event = (KeyEvent)param.args[0];
 
-		
-		// Show Info
+                try{
+                    psGamepadHandler.setGamepadKeyState(event);
+                } catch(Exception e) {
+                    log(e);
+                }
+            }
+        });
+
+        XposedHelpers.findAndHookMethod(activityClass, "dispatchGenericMotionEvent", MotionEvent.class, new XC_MethodHook() {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                if(psGamepadHandler == null) return;
+
+                MotionEvent event = (MotionEvent)param.args[0];
+
+                try{
+                    psGamepadHandler.setGamepadAxisState(event);
+                } catch(Exception e) {
+                    log(e);
+                }
+            }
+        });
+
+        // Show Info
         Class<?> padDataClass = XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadData", lpparam.classLoader);
 
         XposedHelpers.findAndHookMethod(XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary", lpparam.classLoader), "rpCoreSetPadData", padDataClass, new XC_MethodHook() {
@@ -148,79 +150,72 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
             }
         });
 
-		final Class<?> rpActivityMainClass = XposedHelpers.findClass("com.playstation.remoteplay.RpActivityMain", lpparam.classLoader);
-		
-		XposedHelpers.findAndHookMethod(rpActivityMainClass, "onResume", new XC_MethodHook() {
-			protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-				if(System.currentTimeMillis() - prefsLoadMillis < 10000)
-					return;
+        final Class<?> rpActivityMainClass = XposedHelpers.findClass("com.playstation.remoteplay.RpActivityMain", lpparam.classLoader);
 
-				prefsLoadMillis = System.currentTimeMillis();
+        XposedHelpers.findAndHookMethod(rpActivityMainClass, "onResume", new XC_MethodHook() {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                if(System.currentTimeMillis() - prefsLoadMillis < 10000)
+                    return;
 
-				//XposedBridge.log("prefs psGamepadHandler : " + (psGamepadHandler == null ? null : psGamepadHandler.hashCode()));
+                prefsLoadMillis = System.currentTimeMillis();
 
-				if(psGamepadHandler != null) {
-					psGamepadHandler.setOnGamepadStateChangeListener(null);
-					psGamepadHandler = null;
-				}
+                //XposedBridge.log("prefs psGamepadHandler : " + (psGamepadHandler == null ? null : psGamepadHandler.hashCode()));
 
-				Activity activity = (Activity) param.thisObject;
-				String msg = "Load Profile Failed.";
+                if(psGamepadHandler != null) {
+                    psGamepadHandler.setOnGamepadStateChangeListener(null);
+                    psGamepadHandler = null;
+                }
 
-				try {
-					if (context == null)
-						context = activity.getApplicationContext();
+                Activity activity = (Activity) param.thisObject;
+                String msg = "Load Profile Failed.";
 
-					File prefsFile = new File(PREFS_PATH);
+                try {
+                    if (context == null)
+                        context = activity.getApplicationContext();
 
-					XposedBridge.log("prefs path = " + PREFS_PATH);
+                    File prefsFile = new File(PREFS_PATH);
 
-					if(prefsFile.exists()) {
-						XposedBridge.log("prefs file exists.");
-					} else {
-						XposedBridge.log("prefs file not exists.");
-					}
+                    XposedBridge.log("prefs path = " + PREFS_PATH);
 
-					XSharedPreferences prefs = new XSharedPreferences(prefsFile);
+                    if(prefsFile.exists()) {
+                        XposedBridge.log("prefs file exists.");
+                    } else {
+                        XposedBridge.log("prefs file not exists.");
+                    }
 
-					Map<String, ?> prefsValues = prefs.getAll();
-					int mappingCount = 0;
+                    XSharedPreferences prefs = new XSharedPreferences(prefsFile);
 
-					for(String key : prefsValues.keySet()) {
-						if(key.contains("analog_") || key.startsWith("button_") || key.startsWith("dpad_"))
-							mappingCount++;
+                    Map<String, ?> prefsValues = prefs.getAll();
+                    int mappingCount = 0;
 
-						XposedBridge.log("prefs [" + key + "] => [" + prefsValues.get(key) + "]");
-					}
+                    for(String key : prefsValues.keySet()) {
+                        if(key.contains("analog_") || key.startsWith("button_") || key.startsWith("dpad_"))
+                            mappingCount++;
 
-					XposedBridge.log("prefs mapping count = " + mappingCount);
+                        XposedBridge.log("prefs [" + key + "] => [" + prefsValues.get(key) + "]");
+                    }
 
-					String lastProfile = null;
-					if (mappingCount == 0) {
-						msg = "No Mapping Profile.";
-					} else {
-						lastProfile = prefs.getString("last_profile", null);
-						msg = lastProfile == null || lastProfile.isEmpty() ? "[ Default ]" : "[ " + lastProfile + " ]";
+                    XposedBridge.log("prefs mapping count = " + mappingCount);
 
-						psGamepadHandler = new PSGamepadHandler(activity, null, prefs);
-						psGamepadHandler.setOnGamepadStateChangeListener(XRPAssistant.this);
-					}
+                    String lastProfile = null;
+                    if (mappingCount == 0) {
+                        msg = "No Mapping Profile.";
+                    } else {
+                        lastProfile = prefs.getString("last_profile", null);
+                        msg = lastProfile == null || lastProfile.isEmpty() ? "[ Default ]" : "[ " + lastProfile + " ]";
 
-				} catch (Exception e) {
-					log(e);
-				} finally {
-					Toast.makeText(activity, msg, Toast.LENGTH_LONG).show();
+                        psGamepadHandler = new PSGamepadHandler(activity, null, prefs);
+                        psGamepadHandler.setOnGamepadStateChangeListener(XRPAssistant.this);
+                    }
 
-				}
+                } catch (Exception e) {
+                    log(e);
+                } finally {
+                    Toast.makeText(activity, msg, Toast.LENGTH_LONG).show();
+
+                }
 			}
 		});
-
-		XposedHelpers.findAndHookMethod("o.\u0510", lpparam.classLoader, "\u02ce", int.class, int.class, new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                return;
-            }
-        });
 
         // Hook method to tell app that controller is being used
         XposedHelpers.findAndHookMethod("o.\u017f\u04c0", lpparam.classLoader, "\u02cb", Context.class, InputDevice.class, new XC_MethodHook() {
@@ -229,6 +224,26 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
                 if (XRPAssistant.psGamepadHandler != null) {
                     param.setResult(true);
                 }
+            }
+        });
+
+        // Prevent Remote Play from handling input events...
+        XposedHelpers.findAndHookMethod("o.\u0142\u04c0", lpparam.classLoader, "\u02cb", "o.\u0192", padDataClass, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                // ...UNLESS it was sourced from the touchscreen controller
+                if (!Thread.currentThread().getStackTrace()[7].getMethodName().equals("onTouch")) {
+                    param.setResult(null);
+                }
+            }
+        });
+
+        // Remote Play reads from an object containing an RPCorePadData object every 16ms.
+        // When that class is instantiated, store it onto the state sender.
+        // If we don't do this, then the pad data will get reset
+        XposedHelpers.findAndHookConstructor("o.\u0142\u04c0", lpparam.classLoader, Context.class, new XC_MethodHook() {
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                XGamepadStateSender.setPadDataHolder(param.thisObject);
             }
         });
 
@@ -255,11 +270,83 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
             }
         });
 
-		new XFakeWifiEnabler(lpparam).apply();
-	}
+        new XFakeWifiEnabler(lpparam).apply();
+    }
 
-	@Override
-	public void onGamepadStateChange(boolean sensor) {
-		XGamepadStateSender.applyGamepadState(psGamepadHandler);
-	}
+    private void hookHomeButton(ClassLoader classLoader) {
+        String[] WINDOW_MANAGER_CLASS_NAMES;
+        if (Build.VERSION.SDK_INT >= 23) {
+            WINDOW_MANAGER_CLASS_NAMES = new String[]{
+                    "com.android.server.policy.OemPhoneWindowManager", // OxygenOS Devices
+                    "com.android.server.policy.PhoneWindowManager"
+            };
+        } else {
+            WINDOW_MANAGER_CLASS_NAMES = new String[]{
+                    "com.android.internal.policy.impl.PhoneWindowManager"
+            };
+        }
+        Class<?> windowManagerClass = null;
+        for (String className : WINDOW_MANAGER_CLASS_NAMES) {
+            windowManagerClass = XposedHelpers.findClassIfExists(className, classLoader);
+            if (windowManagerClass != null) {
+                break;
+            }
+        }
+
+        String CLASS_WINDOW_STATE = Build.VERSION.SDK_INT >= 28 ? "com.android.server.policy.WindowManagerPolicy$WindowState"
+                : "android.view.WindowManagerPolicy$WindowState";
+        Class<?> windowStateClass = XposedHelpers.findClassIfExists(CLASS_WINDOW_STATE, classLoader);
+        if (windowManagerClass == null || windowStateClass == null) {
+            log("Could not find Window Manager class, home key interception will not work!");
+            return;
+        }
+
+        XC_MethodHook dispatchKeyHook = new XC_MethodHook(XCallback.PRIORITY_HIGHEST) {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                KeyEvent event;
+                if (param.method.getName().equals("interceptKeyBeforeDispatching")) {
+                    event = (KeyEvent) param.args[1];
+                } else {
+                    event = (KeyEvent) param.args[0];
+                }
+                log(String.format("%s %s", param.method.getName(), event));
+
+                // If we're getting a home key from a controller...
+                if (event.getKeyCode() == KeyEvent.KEYCODE_HOME &&
+                        (event.getSource() & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) {
+                    Context mContext = (Context) XposedHelpers.getObjectField(param.thisObject, "mContext");
+                    ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
+                    String topPackage = am.getRunningTasks(1).get(0).topActivity.getPackageName();
+                    log(topPackage);
+
+                    // ...and our apps are in focus, send the event up to them rather than have it be swallowed up by the OS.
+                    if (topPackage.equals("com.rAs.android.rpgamepad") || topPackage.equals("com.playstation.remoteplay")) {
+                        log(String.format("%s sending event to app", param.method.getName()));
+                        if (param.method.getName().equals("interceptKeyBeforeDispatching")) {
+                            param.setResult(0);
+                        } else {
+                            param.setResult(1);
+                        }
+                    }
+                }
+            }
+
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                log(String.format("%s result: %s", param.method.getName(), param.getResult()));
+            }
+        };
+
+        XposedHelpers.findAndHookMethod(windowManagerClass, "interceptKeyBeforeQueueing",
+                KeyEvent.class, int.class, dispatchKeyHook);
+
+        XposedHelpers.findAndHookMethod(windowManagerClass, "interceptKeyBeforeDispatching",
+                windowStateClass, KeyEvent.class, int.class, dispatchKeyHook);
+
+    }
+
+    @Override
+    public void onGamepadStateChange(boolean sensor) {
+        XGamepadStateSender.applyGamepadState(psGamepadHandler);
+    }
 }
