@@ -324,7 +324,8 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
 
                 // If we're getting a home key from a controller...
                 if (event.getKeyCode() == KeyEvent.KEYCODE_HOME &&
-                        (event.getSource() & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD) {
+                        (event.getSource() & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD &&
+                        (event.getSource() & InputDevice.SOURCE_DPAD) != InputDevice.SOURCE_DPAD) {
                     Context mContext = (Context) XposedHelpers.getObjectField(param.thisObject, "mContext");
                     ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
                     String topPackage = am.getRunningTasks(1).get(0).topActivity.getPackageName();
