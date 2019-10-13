@@ -27,7 +27,7 @@ import de.robv.android.xposed.callbacks.XCallback;
 public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.OnGamepadStateChangeListener {
 
     private static final String APP_PACKAGE = "com.playstation.remoteplay";
-    private static final boolean log = true;
+    private static final boolean log = false;
     private static final String TAG = "RP_ASSISTANT";
     @SuppressLint("SdCardPath")
     private static final String PREFS_PATH = "/data/data/com.rAs.android.rpgamepad/shared_prefs/com.rAs.android.rpgamepad_preferences.xml";
