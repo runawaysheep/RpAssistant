@@ -335,7 +335,7 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
                     if (topPackage.equals("com.rAs.android.rpgamepad") || topPackage.equals("com.playstation.remoteplay")) {
                         log(String.format("%s sending event to app", param.method.getName()));
                         if (param.method.getName().equals("interceptKeyBeforeDispatching")) {
-                            param.setResult(0);
+                            param.setResult(0L);
                         } else {
                             param.setResult(1);
                         }
