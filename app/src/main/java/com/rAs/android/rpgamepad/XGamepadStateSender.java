@@ -1,6 +1,7 @@
 package com.rAs.android.rpgamepad;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 import de.robv.android.xposed.XposedHelpers;
 
@@ -10,15 +11,19 @@ public class XGamepadStateSender {
 	private static Class<?> joystickState;
 	private static Class<?> triggerState;
 
-	private static Field setPadDataCallback;
+	private static Method setPadDataCallback;
+
+	private static Field padDataHolderField;
+
 	private static Object padDataHolder;
 
-	static void init(Class<?> padDataClass, Class<?> joystickStateClass, Class<?> triggerStateClass, Class<?> padDataHolderClass) {
+	static void init(Class<?> nativeClass, Class<?> padDataClass, Class<?> joystickStateClass, Class<?> triggerStateClass, Class<?> padDataHolderClass) {
 		try {
 			padData = padDataClass.newInstance();
 			joystickState = joystickStateClass;
 			triggerState = triggerStateClass;
-			setPadDataCallback = padDataHolderClass.getDeclaredField("\u02cb\u0971");
+			setPadDataCallback = nativeClass.getMethod("rpCoreSetPadData", padDataClass);
+			padDataHolderField = padDataHolderClass.getDeclaredField("\u02cb\u0971");
 
 		} catch (Exception e) {
 			XRPAssistant.log(e);
@@ -61,7 +66,8 @@ public class XGamepadStateSender {
 			return;
 		}
 		try {
-			setPadDataCallback.set(padDataHolder, padData);
+			padDataHolderField.set(padDataHolder, padData);
+			setPadDataCallback.invoke(null, padData);
 		} catch (Exception e) {
 			XRPAssistant.log(e);
 		}

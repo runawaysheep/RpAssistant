@@ -67,6 +67,7 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
         log("remoteplay load package");
 
         XGamepadStateSender.init(
+                XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary", lpparam.classLoader),
                 XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadData", lpparam.classLoader),
                 XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogStick", lpparam.classLoader),
                 XposedHelpers.findClass("com.playstation.remoteplay.core.RpNativeCoreLibrary$RPCorePadAnalogButtons", lpparam.classLoader),
@@ -92,36 +93,26 @@ public class XRPAssistant implements IXposedHookLoadPackage, PSGamepadHandler.On
             }
         });
 
-        if (Build.VERSION.SDK_INT < 28) {
-            XposedHelpers.findAndHookMethod("o.\u0142\u04c0", lpparam.classLoader, "onKey", View.class, int.class, KeyEvent.class, new XC_MethodHook() {
-                @Override
-                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    if (psGamepadHandler == null) return;
+        XposedHelpers.findAndHookMethod("o.\u0142\u04c0", lpparam.classLoader, "onKey", View.class, int.class, KeyEvent.class, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                if (psGamepadHandler == null) return;
 
-                    KeyEvent event = (KeyEvent) param.args[2];
-                    try {
-                        psGamepadHandler.setGamepadKeyState(event);
-                    } catch (Exception e) {
-                        log(e);
-                    }
-                    param.setResult(true);
+                KeyEvent event = (KeyEvent) param.args[2];
+
+                // Don't hook on-screen controller events
+                if (event.getDevice().isVirtual()) {
+                    return;
                 }
-            });
-        } else {
-            XposedHelpers.findAndHookMethod(activityClass, "dispatchKeyEvent", KeyEvent.class, new XC_MethodHook() {
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    if (psGamepadHandler == null) return;
 
-                    KeyEvent event = (KeyEvent) param.args[0];
-
-                    try {
-                        psGamepadHandler.setGamepadKeyState(event);
-                    } catch (Exception e) {
-                        log(e);
-                    }
+                try {
+                    psGamepadHandler.setGamepadKeyState(event);
+                } catch (Exception e) {
+                    log(e);
                 }
-            });
-        }
+                param.setResult(true);
+            }
+        });
 
         XposedHelpers.findAndHookMethod(activityClass, "dispatchGenericMotionEvent", MotionEvent.class, new XC_MethodHook() {
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
