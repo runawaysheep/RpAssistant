@@ -1,7 +1,10 @@
 package com.rAs.android.rpgamepad;
 
+import android.annotation.SuppressLint;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiInfo;
@@ -44,6 +47,33 @@ public class XFakeWifiEnabler {
                     applyFakeNetwork(param);
             }
         });
+
+        if (Build.VERSION.SDK_INT >= 21) {
+            XposedHelpers.findAndHookMethod(CONNECTIVITY_MANAGER, this.lpparam.classLoader, "getNetworkInfo", Network.class, new XC_MethodHook() {
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    Network network = (Network) param.args[0];
+                    ConnectivityManager connectivityManager = (ConnectivityManager) param.thisObject;
+                    @SuppressLint("MissingPermission") NetworkInfo netInfo = connectivityManager.getNetworkInfo(network);
+                    if (netInfo.getType() == 1 && netInfo.isConnected()) {
+                        return;
+                    }
+
+                    XFakeWifiEnabler.this.applyFakeNetwork(param);
+                }
+            });
+
+            XposedHelpers.findAndHookMethod(NetworkCapabilities.class, "hasTransport", int.class, new XC_MethodHook() {
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    Integer transportType = (Integer) param.args[0];
+                    if (transportType == NetworkCapabilities.TRANSPORT_ETHERNET || transportType == NetworkCapabilities.TRANSPORT_WIFI) {
+                        param.setResult(true);
+                        return;
+                    }
+                    param.setResult(false);
+
+                }
+            });
+        }
 
         XposedHelpers.findAndHookMethod(CONNECTIVITY_MANAGER, lpparam.classLoader, "isActiveNetworkMetered", new XC_MethodHook() {
             @Override

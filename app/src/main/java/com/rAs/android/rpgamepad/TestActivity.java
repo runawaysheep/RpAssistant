@@ -123,15 +123,15 @@ public class TestActivity extends Activity implements PSGamepadHandler.OnGamepad
     public void onGamepadStateChange(boolean sensor) {
         PSGamepadValues gamepadValues = psGamepadHandler.getGamepadValues();
         if(sensor) {
-            pressedL2.setAlpha(1f * gamepadValues.getLeftTrigger() / PSGamepadHandler.TRIGGER_MAX_VALUE);
-            pressedR2.setAlpha(1f * gamepadValues.getRightTrigger() / PSGamepadHandler.TRIGGER_MAX_VALUE);
+            pressedL2.setAlpha(1f * gamepadValues.getLeftTrigger() / PSGamepadHandler.ANALOG_MAX_VALUE);
+            pressedR2.setAlpha(1f * gamepadValues.getRightTrigger() / PSGamepadHandler.ANALOG_MAX_VALUE);
 
             if(leftAnalogCenter != null) {
                 int left = Integer.MIN_VALUE, top = Integer.MIN_VALUE;
-                if(Math.abs(gamepadValues.getLeftAxisX()) > PSGamepadHandler.ANALOG_STICK_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
-                    left = (int) (13f * gamepadValues.getLeftAxisX() / PSGamepadHandler.ANALOG_STICK_MAX_VALUE * scale);
-                if(Math.abs(gamepadValues.getLeftAxisY()) > PSGamepadHandler.ANALOG_STICK_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
-                    top = (int) (-13f * gamepadValues.getLeftAxisY() / PSGamepadHandler.ANALOG_STICK_MAX_VALUE * scale);
+                if(Math.abs(gamepadValues.getLeftAxisX()) > PSGamepadHandler.ANALOG_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
+                    left = (int) (13f * ((((float) gamepadValues.getLeftAxisX() / PSGamepadHandler.ANALOG_MAX_VALUE) * 2) - 1) * scale);
+                if(Math.abs(gamepadValues.getLeftAxisY()) > PSGamepadHandler.ANALOG_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
+                    top = (int) (13f * ((((float) gamepadValues.getLeftAxisY() / PSGamepadHandler.ANALOG_MAX_VALUE) * 2) - 1) * scale);
 
                 if(left != Integer.MIN_VALUE || top != Integer.MIN_VALUE) {
                     if(left == Integer.MIN_VALUE) left = 0;
@@ -147,11 +147,10 @@ public class TestActivity extends Activity implements PSGamepadHandler.OnGamepad
 
             if(rightAnalogCenter != null) {
                 int left = Integer.MIN_VALUE, top = Integer.MIN_VALUE;
-                if(Math.abs(gamepadValues.getRightAxisX()) > PSGamepadHandler.ANALOG_STICK_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
-                    left = (int) (13f * gamepadValues.getRightAxisX() / PSGamepadHandler.ANALOG_STICK_MAX_VALUE * scale);
-                if(Math.abs(gamepadValues.getRightAxisY()) > PSGamepadHandler.ANALOG_STICK_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
-                    top = (int) (-13f * gamepadValues.getRightAxisY() / PSGamepadHandler.ANALOG_STICK_MAX_VALUE * scale);
-
+                if(Math.abs(gamepadValues.getRightAxisX()) > PSGamepadHandler.ANALOG_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
+                    left = (int) (13f * ((((float) gamepadValues.getRightAxisX() / PSGamepadHandler.ANALOG_MAX_VALUE) * 2) - 1) * scale);
+                if(Math.abs(gamepadValues.getRightAxisY()) > PSGamepadHandler.ANALOG_MAX_VALUE * psGamepadHandler.getAnalogDeadZone())
+                    top = (int) (13f * ((((float) gamepadValues.getRightAxisY() / PSGamepadHandler.ANALOG_MAX_VALUE) * 2) - 1) * scale);
                 if(left != Integer.MIN_VALUE || top != Integer.MIN_VALUE) {
                     if(left == Integer.MIN_VALUE) left = 0;
                     if(top == Integer.MIN_VALUE) top = 0;
